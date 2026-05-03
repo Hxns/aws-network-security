@@ -1,6 +1,6 @@
 # aws-network-security
 
-![Diagrama de la Arquitectura](./img/DMZ-IMG.png)
+![Diagrama de la Arquitectura](./img/DMZ-IMG-2.png)
 
 
 ## 1. Cimentación de la Red (VPC y Subredes)
