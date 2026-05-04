@@ -1,5 +1,7 @@
 # Guía de Configuración: Creación de AMI y Balanceador de Carga (ALB)
 
+![Diagrama de la Arquitectura](./img/DMZ-IMG-3.png)
+
 Este documento detalla el procedimiento seguido para preparar la infraestructura de red, crear una imagen personalizada de un servidor web y configurar el equilibrio de carga.
 
 ## 1. Configuración de la Infraestructura de Red
