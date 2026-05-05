@@ -1,4 +1,4 @@
-# aws-network-security
+# Ciberseguridad en redes informáticas en AWS
 
 ![Diagrama de la Arquitectura](./img/DMZ-IMG-2.png)
 
