@@ -56,8 +56,6 @@ Finalmente, para la administración de la infraestructura:
 
 ![Diagrama de la Arquitectura](./img/DMZ-IMG-3.png)
 
-Este documento detalla el procedimiento seguido para preparar la infraestructura de red, crear una imagen personalizada de un servidor web y configurar el equilibrio de carga.
-
 ## 7. Configuración de la Infraestructura de Red
 
 Antes de la duplicación de servidores, se preparó el entorno de red en la VPC:
