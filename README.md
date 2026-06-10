@@ -3,93 +3,100 @@
 ![Diagrama de la Arquitectura](./img/DMZ-IMG-2.png)
 
 
-## 1. Cimentación de la Red (VPC y Subredes)
-El primer paso consistió en definir el espacio de red virtual aislado donde residirán todos los recursos.
+## 1. Cimentación de la red (VPC y subredes)
 
-*   **Creación de la VPC:** Se creó una VPC denominada `vpc-herzfelder` con un bloque CIDR de `10.0.0.0/16`, lo que proporciona un amplio rango de direcciones IP internas.
-*   **Segmentación de la Red (Subredes):** Se dividió la VPC en tres segmentos específicos para separar las responsabilidades de seguridad:
-    *   **Subred Pública:** Llamada `public-subnet` (`10.0.1.0/24`), ubicada en la zona de disponibilidad `eu-south-2a`. Se habilitó la asignación automática de IPv4 pública para que los recursos aquí desplegados (como el WebServer) sean accesibles desde Internet.
-    *   **Subredes Privadas para Datos:** Se crearon dos subredes para la base de datos para permitir la replicación y alta disponibilidad:
+El primer paso fue definir el espacio de red virtual aislado donde residirán todos los recursos.
+
+*   **Creación de la VPC:** Se creó la VPC `vpc-herzfelder` con el bloque CIDR `10.0.0.0/16`, proporcionando un amplio rango de direcciones IP internas.
+*   **Segmentación de la red (subredes):** La VPC se dividió en tres segmentos con responsabilidades de seguridad diferenciadas:
+    *   **Subred pública:** `public-subnet` (`10.0.1.0/24`), en la zona de disponibilidad `eu-south-2a`. Se habilitó la asignación automática de IPv4 pública para que los recursos desplegados aquí (como el WebServer) sean accesibles desde Internet.
+    *   **Subredes privadas para datos:** Se crearon dos subredes para la base de datos, lo que permite replicación y alta disponibilidad:
         *   `private-subnet-BBDD-1` (`10.0.2.0/24`) en la zona `eu-south-2a`.
         *   `private-subnet-BBDD-2` (`10.0.3.0/24`) en la zona `eu-south-2b`.
 
-## 2. Conectividad Exterior (Internet Gateway y Enrutamiento)
-Para que la subred pública pueda comunicarse con el mundo exterior, se realizaron las siguientes configuraciones de red:
+## 2. Conectividad exterior (Internet Gateway y enrutamiento)
 
-*   **Internet Gateway (IGW):** Se creó y adjuntó un Internet Gateway a la VPC `vpc-herzfelder`. Este componente actúa como el puente entre la red de AWS e Internet.
-*   **Tablas de Enrutamiento:**
-    *   Se creó una tabla de enrutamiento específica para el tráfico público.
-    *   Se añadió una ruta hacia el destino `0.0.0.0/0` (todo el tráfico de Internet) apuntando al Internet Gateway creado.
-    *   **Asociación:** Esta tabla se asoció explícitamente a la `public-subnet`.
+Para habilitar la comunicación de la subred pública con Internet, se realizaron las siguientes configuraciones:
 
-## 3. Despliegue de la Capa de Computación (EC2)
-Se aprovisionó el servidor que atenderá las peticiones de los usuarios.
+*   **Internet Gateway (IGW):** Se creó un Internet Gateway y se adjuntó a la VPC `vpc-herzfelder`. Este componente actúa como puente entre la red de AWS e Internet.
+*   **Tablas de enrutamiento:**
+    *   Se creó una tabla de enrutamiento dedicada al tráfico público.
+    *   Se añadió una ruta hacia `0.0.0.0/0` apuntando al Internet Gateway.
+    *   **Asociación:** La tabla se asoció explícitamente a la `public-subnet`.
+
+## 3. Despliegue de la capa de computación (EC2)
+
+Se aprovisionó el servidor encargado de atender las peticiones de los usuarios.
 
 *   **Instancia EC2 (WebServer):**
-    *   **AMI:** Se seleccionó Amazon Linux 2023 (Kernel 6.1).
-    *   **Tipo de Instancia:** `t3.micro` (ideal para pruebas y cargas ligeras).
-    *   **Seguridad de Acceso:** Se generó un par de claves SSH llamado `webserver-keypair-herzfelder` en formato `.pem` para la administración remota segura.
-    *   **Red:** Se vinculó a la `vpc-herzfelder` y se colocó dentro de la `public-subnet`.
+    *   **AMI:** Amazon Linux 2023 (Kernel 6.1).
+    *   **Tipo de instancia:** `t3.micro` — adecuado para entornos de prueba y cargas ligeras.
+    *   **Acceso seguro:** Se generó el par de claves SSH `webserver-keypair-herzfelder` en formato `.pem` para la administración remota.
+    *   **Red:** Vinculada a `vpc-herzfelder` y ubicada dentro de la `public-subnet`.
 
-## 4. Capa de Datos de Alta Disponibilidad (RDS)
+## 4. Capa de datos de alta disponibilidad (RDS)
+
 Para la persistencia de datos, se preparó el entorno para una base de datos gestionada con réplica.
 
-*   **Grupo de Subredes de DB:** Se creó un "DB Subnet Group" que agrupa las dos subredes privadas (`private-subnet-BBDD-1` y `2`). Esto es indispensable en RDS para permitir que la base de datos principal y su réplica residan en zonas de disponibilidad distintas, garantizando que el servicio no caiga si una zona falla.
-*   **Instancias RDS:** Se desplegó una base de datos principal y una réplica de lectura, conectadas entre sí para sincronización de datos.
+*   **Grupo de subredes de DB:** Se creó un *DB Subnet Group* que agrupa las dos subredes privadas (`private-subnet-BBDD-1` y `private-subnet-BBDD-2`). Este requisito de RDS permite que la instancia principal y su réplica residan en zonas de disponibilidad distintas, garantizando continuidad del servicio ante el fallo de una zona.
+*   **Instancias RDS:** Se desplegó una base de datos principal junto con una réplica de lectura, sincronizadas entre sí para garantizar la integridad de los datos.
 
-## 5. Configuración de Seguridad (Firewalls)
-Se implementó una estrategia de "defensa en profundidad" utilizando dos capas de seguridad:
+## 5. Configuración de seguridad (firewalls)
 
-*   **Network ACL (NACL):** Se configuró una lista de control de acceso a nivel de red para filtrar el tráfico que entra y sale de las subredes.
-*   **Security Groups (Firewalls de Instancia):**
-    *   **WebServer-SecurityGroup:** Se configuraron reglas de entrada para permitir tráfico HTTP (80), HTTPS (443) y SSH (22).
-    *   **DB Security Group:** Se aplicó el concepto de Zona Desmilitarizada (DMZ), configurando el firewall de la base de datos para que solo acepte tráfico proveniente del grupo de seguridad del WebServer, bloqueando cualquier otro acceso directo.
+Se implementó una estrategia de *defensa en profundidad* mediante dos capas de control de acceso:
 
-## 6. Acceso Remoto y Gestión de Tráfico
-Finalmente, para la administración de la infraestructura:
+*   **Network ACL (NACL):** Lista de control de acceso a nivel de subred para filtrar el tráfico entrante y saliente.
+*   **Security Groups (firewalls de instancia):**
+    *   **WebServer-SecurityGroup:** Reglas de entrada configuradas para permitir tráfico HTTP (80), HTTPS (443) y SSH (22).
+    *   **DB Security Group:** Siguiendo el principio de Zona Desmilitarizada (DMZ), el firewall de la base de datos solo acepta tráfico originado desde el Security Group del WebServer, bloqueando cualquier acceso directo externo.
 
-*   **Port Forwarding:** Se estableció una estrategia de reenvío de puertos (Port Forwarding) para lograr atravesar los firewalls de forma segura y alcanzar los servicios web internos o gestionar la base de datos sin exponerla directamente a Internet.
-*   **Validación:** Se confirmó la conectividad mediante las claves SSH generadas, asegurando que el flujo de tráfico entrante y saliente está correctamente orquestado por el Internet Gateway.
+## 6. Acceso remoto y gestión del tráfico
+
+Para la administración de la infraestructura se establecieron los siguientes mecanismos:
+
+*   **Port Forwarding:** Se configuró una estrategia de reenvío de puertos para atravesar los firewalls de forma segura, permitiendo acceder a servicios web internos o gestionar la base de datos sin exponerla directamente a Internet.
+*   **Validación:** Se verificó la conectividad mediante las claves SSH generadas, confirmando que el flujo de tráfico entrante y saliente está correctamente orquestado por el Internet Gateway.
 
 
-# Creación de AMI y Balanceador de Carga (ALB)
+---
+
+# Creación de AMI y balanceador de carga (ALB)
 
 ![Diagrama de la Arquitectura](./img/DMZ-IMG-3.png)
 
-## 7. Configuración de la Infraestructura de Red
+## 7. Configuración de la infraestructura de red
 
-Antes de la duplicación de servidores, se preparó el entorno de red en la VPC:
+Antes de duplicar los servidores, se amplió el entorno de red en la VPC:
 
-*   **Creación de Subred:** Se creó una nueva subred denominada `DMZ-subnet2` dentro de la VPC `vpc-herzfelder`.
-*   **Asignación de Zona y CIDR:** Se configuró en la zona de disponibilidad `eu-south-2b` con el bloque CIDR `10.0.5.0/24`.
-*   **Configuración de Enrutamiento:** Se verificó que la tabla de rutas de la subred DMZ tuviera una ruta activa hacia el destino `0.0.0.0/0` a través de una interfaz de red (ENI) específica para permitir el tráfico externo.
+*   **Nueva subred:** Se creó `DMZ-subnet2` dentro de `vpc-herzfelder`.
+*   **Zona y CIDR:** Configurada en la zona de disponibilidad `eu-south-2b` con el bloque CIDR `10.0.5.0/24`.
+*   **Enrutamiento:** Se verificó que la tabla de rutas de `DMZ-subnet2` contara con una ruta activa hacia `0.0.0.0/0` a través de la interfaz de red (ENI) correspondiente, habilitando el tráfico externo.
 
-## 8. Creación de la Imagen Personalizada (AMI)
+## 8. Creación de la imagen personalizada (AMI)
 
-Para asegurar que los nuevos servidores sean idénticos al original, se generó una Amazon Machine Image (AMI):
+Para garantizar que los nuevos servidores sean idénticos al original, se generó una Amazon Machine Image (AMI):
 
-*   **Selección del Origen:** Se utilizó la instancia denominada `WebServer` como base.
-*   **Generación de la Imagen:** Desde el menú de **Acciones > Imagen y plantillas**, se seleccionó **Crear imagen**.
-*   **Detalles de la AMI:** Se le asignó el nombre `Herzfelder-WebServer-AMI` y se habilitó la opción de **Reiniciar instancia** para garantizar la coherencia de los datos durante la creación.
-*   **Verificación:** Se monitoreó el estado de la AMI en la sección de Imágenes hasta que cambió de "Pendiente" a "Disponible".
+*   **Origen:** Instancia `WebServer`.
+*   **Generación:** Desde **Acciones > Imagen y plantillas**, se seleccionó **Crear imagen**.
+*   **Detalles:** Nombre `Herzfelder-WebServer-AMI`; se habilitó la opción **Reiniciar instancia** para asegurar la coherencia de los datos en el momento de la captura.
+*   **Verificación:** Se monitoreó el estado de la AMI en la sección de Imágenes hasta que cambió de *Pendiente* a *Disponible*.
 
-## 9. Despliegue de la Segunda Instancia
+## 9. Despliegue de la segunda instancia
 
-Utilizando la imagen creada, se procedió a lanzar un segundo servidor:
+A partir de la imagen creada, se lanzó un segundo servidor:
 
-*   **Lanzamiento desde AMI:** Se seleccionó la AMI `Herzfelder-WebServer-AMI` y se ejecutó la opción **Lanzar instancia a partir de una AMI**.
-*   **Identificación:** La nueva instancia se nombró `WebServer2`.
-*   **Configuración de Red y Seguridad:**
-    *   Se seleccionó la VPC `vpc-herzfelder` y la subred `DMZ-subnet2`.
-    *   Se habilitó la **Asignación automática de IP pública**.
-    *   Se asoció el grupo de seguridad existente `WebSever-SecurityGroup`.
-    *   Se utilizó el par de claves `webserver-keypair-herzfelder` para el acceso.
+*   **Lanzamiento desde AMI:** Se seleccionó `Herzfelder-WebServer-AMI` y se ejecutó la opción **Lanzar instancia a partir de una AMI**.
+*   **Identificación:** La nueva instancia se denominó `WebServer2`.
+*   **Configuración de red y seguridad:**
+    *   VPC `vpc-herzfelder` y subred `DMZ-subnet2`.
+    *   **Asignación automática de IP pública** habilitada.
+    *   Security Group existente `WebServer-SecurityGroup` asociado.
+    *   Par de claves `webserver-keypair-herzfelder` para el acceso SSH.
 
-## 10. Configuración del Balanceador de Carga (ALB)
+## 10. Configuración del balanceador de carga (ALB)
 
-Finalmente, se inició la configuración del servicio para distribuir el tráfico:
+Por último, se configuró el servicio encargado de distribuir el tráfico entre ambas instancias:
 
-*   **Navegación:** En la consola de EC2, se accedió a la sección **Equilibrio de carga > Balanceadores de carga**.
-*   **Selección del Tipo:** Se eligió crear un **Application Load Balancer (ALB)**, diseñado para manejar tráfico HTTP y HTTPS a nivel de aplicación (Capa 7).
-*   **Creación:** Se pulsó el botón **Crear** para iniciar el asistente de configuración del balanceador que conectará las instancias `WebServer` y `WebServer2`.
-
+*   **Navegación:** En la consola de EC2, se accedió a **Equilibrio de carga > Balanceadores de carga**.
+*   **Tipo seleccionado:** **Application Load Balancer (ALB)** — diseñado para gestionar tráfico HTTP/HTTPS a nivel de aplicación (Capa 7).
+*   **Creación:** Se inició el asistente de configuración del balanceador para conectar las instancias `WebServer` y `WebServer2` bajo un único punto de entrada.
